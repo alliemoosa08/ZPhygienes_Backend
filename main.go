@@ -29,5 +29,6 @@ func main() {
 }
 
 func ServiceHandle() {
-	router.HandleFunc("/services/insert", InsertService).Methods("POST")
+	router.HandleFunc("/services", InsertService).Methods("POST")
+	router.HandleFunc("/services/{serviceType}", GetServiceByServiceType).Methods("GET")
 }

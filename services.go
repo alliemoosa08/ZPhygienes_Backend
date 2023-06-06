@@ -1,9 +1,13 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"time"
+
+	"github.com/gorilla/mux"
+	"github.com/lib/pq"
 )
 
 type Service struct {
@@ -61,10 +65,72 @@ func InsertService(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		CheckError(err)
+		if err.(*pq.Error).Code == "23505" {
+			w.WriteHeader(http.StatusAlreadyReported)
+			json.NewEncoder(w).Encode(err)
+		} else {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(err)
+		}
+
+	} else {
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(newService)
+	}
+
+}
+
+func GetServiceByServiceType(w http.ResponseWriter, r *http.Request) {
+	var getService Service
+	var getServices []Service
+	serviceType := mux.Vars(r)["serviceType"]
+
+	db, err := ConnectDB()
+	if err != nil {
+		CheckError(err)
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(err)
+	}
+
+	// Close the database connection when you're done
+	defer db.Close()
+
+	query := `SELECT image, title, price, is_selected, service_type, 
+	service_description, date_created, date_modified, removed_from_booking_list FROM
+	services  WHERE service_type = $1`
+
+	// Execute the query
+	rows, err := db.Query(query, serviceType)
+
+	if err != nil {
+		CheckError(err)
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(err)
 	}
 
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(newService)
+	defer rows.Close()
+
+	if !rows.Next() {
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(err)
+	} else {
+		for rows.Next() {
+			err := rows.Scan(&getService.Image, &getService.Title, &getService.Price, &getService.IsSelected, &getService.ServiceType,
+				&getService.ServiceDescription, &getService.DateCreated, &getService.DateModified, &getService.RemovedFromBookingList)
+
+			if err != nil {
+				CheckError(err)
+				if err == sql.ErrNoRows {
+					w.WriteHeader(http.StatusNoContent)
+					json.NewEncoder(w).Encode(err)
+				}
+			}
+
+			getServices = append(getServices, getService)
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(getServices)
+	}
+
 }
