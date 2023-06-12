@@ -93,7 +93,7 @@ func GetServiceByServiceType(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Close the database connection when you're done
-	defer db.Close()
+	//defer db.Close()
 
 	query := `SELECT image, title, price, is_selected, service_type, 
 	service_description, date_created, date_modified, removed_from_booking_list FROM
@@ -110,25 +110,24 @@ func GetServiceByServiceType(w http.ResponseWriter, r *http.Request) {
 
 	defer rows.Close()
 
-	if !rows.Next() {
-		w.WriteHeader(http.StatusForbidden)
+	for rows.Next() {
+		err := rows.Scan(&getService.Image, &getService.Title, &getService.Price, &getService.IsSelected, &getService.ServiceType,
+			&getService.ServiceDescription, &getService.DateCreated, &getService.DateModified, &getService.RemovedFromBookingList)
+
+		if err != nil {
+			CheckError(err)
+			if err == sql.ErrNoRows {
+				w.WriteHeader(http.StatusNoContent)
+				json.NewEncoder(w).Encode(err)
+			}
+		}
+		getServices = append(getServices, getService)
+	}
+
+	if len(getServices) == 0 {
+		w.WriteHeader(http.StatusNoContent)
 		json.NewEncoder(w).Encode(err)
 	} else {
-		for rows.Next() {
-			err := rows.Scan(&getService.Image, &getService.Title, &getService.Price, &getService.IsSelected, &getService.ServiceType,
-				&getService.ServiceDescription, &getService.DateCreated, &getService.DateModified, &getService.RemovedFromBookingList)
-
-			if err != nil {
-				CheckError(err)
-				if err == sql.ErrNoRows {
-					w.WriteHeader(http.StatusNoContent)
-					json.NewEncoder(w).Encode(err)
-				}
-			}
-
-			getServices = append(getServices, getService)
-		}
-
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(getServices)
 	}
